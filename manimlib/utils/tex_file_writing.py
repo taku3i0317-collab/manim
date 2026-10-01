@@ -141,15 +141,27 @@ def full_tex_to_svg(full_tex: str, compiler: str = "latex", message: str = ""):
             dvi_path,
             "-n",  # no fonts
             "-v",
-            "0",  # quiet
+            "3",  # errors and warnings only, so that a font it could not load is noticed
             "--stdout",  # output to stdout instead of file
         ],
         capture_output=True,
     )
 
+    messages = process.stderr.decode("utf-8", errors="replace")
     if process.returncode != 0:
-        error_str = process.stderr.decode("utf-8", errors="replace").strip()
-        raise LatexError(error_str or "dvisvgm failed to convert DVI to SVG")
+        raise LatexError(messages.strip() or "dvisvgm failed to convert DVI to SVG")
+
+    # dvisvgm exits normally when it cannot find or make a font, and simply leaves
+    # out the glyphs that needed it. Raising here, rather than returning what is left,
+    # also keeps that partial result out of the disk cache, where it would outlive
+    # whatever fixes the font.
+    font_failures = get_font_failures(messages)
+    if font_failures:
+        raise LatexError(
+            "dvisvgm could not load the fonts this tex needs:\n"
+            + "\n".join(font_failures)
+            + "\nWith MiKTeX, installing the cm-super package usually fixes this."
+        )
 
     # Return SVG string
     result = process.stdout.decode("utf-8")
@@ -158,6 +170,15 @@ def full_tex_to_svg(full_tex: str, compiler: str = "latex", message: str = ""):
         print(" " * len(message), end="\r")
 
     return result
+
+
+def get_font_failures(dvisvgm_messages: str) -> list[str]:
+    """The warnings from dvisvgm which say a font could not be found or made"""
+    return [
+        line.strip()
+        for line in dvisvgm_messages.splitlines()
+        if "WARNING" in line and re.search(r"font|\.(gf|pk|pfb|tfm)\b", line, re.IGNORECASE)
+    ]
 
 
 class LatexError(Exception):

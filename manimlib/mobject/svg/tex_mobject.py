@@ -12,6 +12,7 @@ from manimlib.mobject.types.vectorized_mobject import VGroup
 from manimlib.mobject.types.vectorized_mobject import VMobject
 from manimlib.utils.color import color_to_hex
 from manimlib.utils.color import hex_to_int
+from manimlib.utils.tex_file_writing import LatexError
 from manimlib.utils.tex_file_writing import latex_to_svg
 from manimlib.utils.tex import num_tex_symbols
 from manimlib.logger import log
@@ -28,7 +29,15 @@ def get_tex_mob_scale_factor() -> float:
     # gives a height of 1 manim unit. Compensates for platform dvisvgm differences.
     font_size_for_unit_height = manim_config.tex.font_size_for_unit_height
     svg_string = latex_to_svg("0", show_message_during_execution=False)
-    svg_height = get_svg_content_height(svg_string)
+    try:
+        svg_height = get_svg_content_height(svg_string)
+    except ValueError:
+        raise LatexError(
+            "LaTeX gave an empty image for the \"0\" used to measure tex. This usually "
+            "means a font is missing (with MiKTeX, install the cm-super package). An "
+            "empty result from before such a fix may also still be in the cache, which "
+            "running manimgl with --clear-cache removes."
+        )
     return 1.0 / (font_size_for_unit_height * svg_height)
 
 
