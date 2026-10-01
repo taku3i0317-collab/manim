@@ -159,7 +159,13 @@ class Camera(object):
 
     def get_target_shape(self) -> tuple[int, int]:
         if self.draw_at_window_size and self.window is not None:
-            return self.window.get_size()
+            width, height = self.window.get_size()
+            if width > 0 and height > 0:
+                return (width, height)
+            # A minimized window has no pixels, and a texture can't be made with a side
+            # of zero, so frames keep the size they had until the window comes back
+            if all(self.pixel_shape):
+                return self.pixel_shape
         return self.default_pixel_shape
 
     def resize_target(self) -> None:
